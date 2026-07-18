@@ -1,0 +1,26 @@
+{
+  "name": "dsa-library",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "test": "node scripts/smoke-test.mjs"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^4.2.0",
+    "@astrojs/sitemap": "^3.3.0",
+    "astro": "^5.7.0",
+    "fuse.js": "^7.1.0",
+    "katex": "^0.16.22",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}

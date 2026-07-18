@@ -1,0 +1,179 @@
+---
+// Diagrama SVG programático que ilustra la estructura del algoritmo.
+// Principios: stroke 1.5px, nodos r=7 outline, fills solo como acento
+// sutil (opacity 0.15), flechas con marker, currentColor en todo.
+interface Props {
+  type: string;
+  class?: string;
+}
+const { type, class: className = '' } = Astro.props;
+
+// Id único por instancia para los markers (varias copias por página).
+const uid = `m${Math.random().toString(36).slice(2, 8)}`;
+const R = 7;
+---
+
+<svg
+  class:list={['algo-svg', className]}
+  viewBox="0 0 120 80"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.5"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+  role="presentation"
+>
+  <defs>
+    <marker
+      id={uid}
+      viewBox="0 0 6 6"
+      refX="5"
+      refY="3"
+      markerWidth="6"
+      markerHeight="4"
+      orient="auto-start-reverse"
+    >
+      <path d="M0 0 L6 3 L0 6" fill="none" stroke="currentColor" stroke-width="1.2"></path>
+    </marker>
+  </defs>
+
+  {
+    type === 'array' && (
+      <g>
+        {/* celdas activas con fill sutil */}
+        <rect x={8} y={28} width="16" height="24" rx="2" fill="currentColor" opacity="0.15" stroke="none" />
+        <rect x={96} y={28} width="16" height="24" rx="2" fill="currentColor" opacity="0.15" stroke="none" />
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <rect x={8 + i * 17.6} y={28} width="16" height="24" rx="2" />
+        ))}
+        {/* punteros L y R */}
+        <line x1={16} y1={66} x2={16} y2={57} marker-end={`url(#${uid})`} />
+        <line x1={104} y1={66} x2={104} y2={57} marker-end={`url(#${uid})`} />
+        <text x={13} y={78} font-size="9" fill="currentColor" stroke="none" font-family="monospace">L</text>
+        <text x={101} y={78} font-size="9" fill="currentColor" stroke="none" font-family="monospace">R</text>
+      </g>
+    )
+  }
+
+  {
+    type === 'linked-list' && (
+      <g>
+        {/* primer nodo destacado */}
+        <circle cx={15} cy={40} r={R} fill="currentColor" opacity="0.15" stroke="none" />
+        {[0, 1, 2, 3].map((i) => (
+          <circle cx={15 + i * 27} cy={40} r={R} />
+        ))}
+        {[0, 1, 2].map((i) => (
+          <line
+            x1={15 + i * 27 + R + 1}
+            y1={40}
+            x2={15 + (i + 1) * 27 - R - 3}
+            y2={40}
+            marker-end={`url(#${uid})`}
+          />
+        ))}
+        {/* terminación a null */}
+        <line x1={96 + R + 1} y1={40} x2={112} y2={40} />
+        <line x1={112} y1={33} x2={112} y2={47} />
+      </g>
+    )
+  }
+
+  {
+    type === 'tree' && (
+      <g>
+        <line x1={60} y1={19} x2={36} y2={40} />
+        <line x1={60} y1={19} x2={84} y2={40} />
+        <line x1={34} y1={50} x2={22} y2={62} />
+        <line x1={38} y1={50} x2={50} y2={62} />
+        <line x1={82} y1={50} x2={70} y2={62} />
+        <line x1={86} y1={50} x2={98} y2={62} />
+        {/* raíz destacada */}
+        <circle cx={60} cy={14} r={R} fill="currentColor" opacity="0.15" stroke="none" />
+        <circle cx={60} cy={14} r={R} />
+        <circle cx={36} cy={45} r={R} />
+        <circle cx={84} cy={45} r={R} />
+        <circle cx={22} cy={67} r={R - 1} />
+        <circle cx={50} cy={67} r={R - 1} />
+        <circle cx={70} cy={67} r={R - 1} />
+        <circle cx={98} cy={67} r={R - 1} />
+      </g>
+    )
+  }
+
+  {
+    type === 'graph' && (
+      <g>
+        <line x1={30} y1={18} x2={78} y2={22} />
+        <line x1={30} y1={18} x2={24} y2={56} />
+        <line x1={30} y1={18} x2={82} y2={58} />
+        <line x1={78} y1={22} x2={82} y2={58} />
+        <line x1={24} y1={56} x2={54} y2={70} />
+        <line x1={82} y1={58} x2={54} y2={70} />
+        {/* nodo origen destacado */}
+        <circle cx={30} cy={18} r={R} fill="currentColor" opacity="0.15" stroke="none" />
+        <circle cx={30} cy={18} r={R} />
+        <circle cx={78} cy={22} r={R} />
+        <circle cx={24} cy={56} r={R} />
+        <circle cx={82} cy={58} r={R} />
+        <circle cx={54} cy={70} r={R} />
+      </g>
+    )
+  }
+
+  {
+    type === 'heap' && (
+      <g>
+        <line x1={60} y1={22} x2={38} y2={42} />
+        <line x1={60} y1={22} x2={82} y2={42} />
+        <line x1={36} y1={52} x2={24} y2={63} />
+        <line x1={40} y1={52} x2={52} y2={63} />
+        {/* raíz máxima: más grande y con fill sutil */}
+        <circle cx={60} cy={15} r={R + 2.5} fill="currentColor" opacity="0.15" stroke="none" />
+        <circle cx={60} cy={15} r={R + 2.5} />
+        <circle cx={38} cy={47} r={R} />
+        <circle cx={82} cy={47} r={R} />
+        <circle cx={24} cy={68} r={R - 1.5} />
+        <circle cx={52} cy={68} r={R - 1.5} />
+      </g>
+    )
+  }
+
+  {
+    type === 'stack' && (
+      <g>
+        {/* elemento superior destacado */}
+        <rect x={38} y={22} width="44" height="11" rx="2" fill="currentColor" opacity="0.15" stroke="none" />
+        {[0, 1, 2, 3].map((i) => (
+          <rect x={38} y={22 + i * 14} width="44" height="11" rx="2" />
+        ))}
+        {/* push/pop */}
+        <line x1={60} y1={6} x2={60} y2={16} marker-end={`url(#${uid})`} />
+      </g>
+    )
+  }
+
+  {
+    type === 'queue' && (
+      <g>
+        {/* frente de la cola destacado */}
+        <rect x={26} y={30} width="16" height="20" rx="2" fill="currentColor" opacity="0.15" stroke="none" />
+        {[0, 1, 2, 3].map((i) => (
+          <rect x={26 + i * 18.5} y={30} width="16" height="20" rx="2" />
+        ))}
+        {/* enqueue por la derecha */}
+        <line x1={116} y1={40} x2={102} y2={40} marker-end={`url(#${uid})`} />
+        {/* dequeue por la izquierda */}
+        <line x1={22} y1={40} x2={8} y2={40} marker-end={`url(#${uid})`} />
+      </g>
+    )
+  }
+</svg>
+
+<style>
+  .algo-svg {
+    display: block;
+    color: var(--accent);
+  }
+</style>

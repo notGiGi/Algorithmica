@@ -1,0 +1,188 @@
+---
+// Client-side enhancement for Markdown code blocks:
+//  1. Wraps every <pre> in a VS Code-style wrapper (language label + Copy).
+//  2. ```pseudo blocks get the distinct pseudocode treatment.
+//  3. Groups consecutive "### Python / ### Java" pairs into tabs; falls back
+//     to grouping all blocks inside .section-implementation by data-language.
+// Idempotent — re-runs safely on astro:page-load.
+---
+
+<script>
+  const TAB_LANGS = new Set([
+    'python',
+    'java',
+    'typescript',
+    'javascript',
+    'c++',
+    'cpp',
+    'c',
+    'go',
+    'rust',
+    'kotlin',
+  ]);
+
+  const COPY_ICON = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="7" height="7" rx="1"/><path d="M8 4V2a1 1 0 00-1-1H2a1 1 0 00-1 1v5a1 1 0 001 1h2"/></svg> Copy`;
+
+  function wrapCodeBlocks() {
+    document.querySelectorAll<HTMLPreElement>('.prose pre').forEach((pre) => {
+      if (pre.closest('.code-block-wrapper')) return;
+
+      const lang = pre.dataset.language ?? '';
+      const isPseudo = lang === 'pseudo';
+      const wrapper = document.createElement('div');
+      wrapper.className = 'code-block-wrapper' + (isPseudo ? ' pseudo' : '');
+
+      const header = document.createElement('div');
+      header.className = 'code-block-header';
+
+      const label = document.createElement('span');
+      label.className = 'lang-label';
+      label.textContent = isPseudo
+        ? 'pseudocode'
+        : lang && lang !== 'plaintext'
+          ? lang
+          : 'text';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy-btn';
+      btn.innerHTML = COPY_ICON;
+      btn.setAttribute('aria-label', 'Copy code to clipboard');
+
+      header.append(label, btn);
+      pre.replaceWith(wrapper);
+      wrapper.append(header, pre);
+    });
+  }
+
+  function langOf(wrapper: Element): string {
+    return (
+      wrapper.querySelector<HTMLPreElement>('pre')?.dataset.language ?? 'code'
+    );
+  }
+
+  function buildTabBar(group: HTMLElement[], labels: string[]): void {
+    const tabs = document.createElement('div');
+    tabs.className = 'lang-tabs';
+
+    group.forEach((wrapper, i) => {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'lang-tab' + (i === 0 ? ' active' : '');
+      tab.textContent = labels[i];
+      tab.addEventListener('click', () => {
+        tabs.querySelectorAll('.lang-tab').forEach((t) => t.classList.remove('active'));
+        tab.classList.add('active');
+        group.forEach((w, j) => {
+          w.style.display = j === i ? '' : 'none';
+        });
+      });
+      tabs.appendChild(tab);
+      if (i > 0) wrapper.style.display = 'none';
+    });
+
+    group[0].before(tabs);
+  }
+
+  function capitalize(s: string): string {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  // Strategy 1: "### Python" heading followed by a code block, repeated.
+  function buildLangTabsFromHeadings() {
+    document.querySelectorAll('.prose').forEach((prose) => {
+      // sections may wrap the content — search inside every container
+      const containers: Element[] = [
+        prose,
+        ...Array.from(prose.querySelectorAll('.entry-section')),
+      ];
+      containers.forEach((container) => {
+        let node = container.firstElementChild;
+        while (node) {
+          const isLangHeading =
+            node.tagName === 'H3' &&
+            TAB_LANGS.has((node.textContent ?? '').trim().toLowerCase()) &&
+            node.nextElementSibling?.classList.contains('code-block-wrapper');
+
+          if (!isLangHeading) {
+            node = node.nextElementSibling;
+            continue;
+          }
+
+          const group: HTMLElement[] = [];
+          const labels: string[] = [];
+          const headings: Element[] = [];
+          let cur: Element | null = node;
+          while (
+            cur &&
+            cur.tagName === 'H3' &&
+            TAB_LANGS.has((cur.textContent ?? '').trim().toLowerCase()) &&
+            cur.nextElementSibling?.classList.contains('code-block-wrapper')
+          ) {
+            const wrapper = cur.nextElementSibling as HTMLElement;
+            group.push(wrapper);
+            labels.push((cur.textContent ?? '').trim());
+            headings.push(cur);
+            cur = wrapper.nextElementSibling;
+          }
+
+          node = cur;
+
+          if (group.length < 2) continue;
+          headings.forEach((h) => h.remove());
+          buildTabBar(group, labels);
+        }
+      });
+    });
+  }
+
+  // Strategy 2 (fallback): group every code block in .section-implementation.
+  function buildLangTabsFromSections() {
+    document
+      .querySelectorAll<HTMLElement>('.section-implementation')
+      .forEach((section) => {
+        if (section.querySelector('.lang-tabs')) return; // already tabbed
+        const wrappers = Array.from(
+          section.querySelectorAll<HTMLElement>('.code-block-wrapper')
+        );
+        if (wrappers.length < 2) return;
+        buildTabBar(
+          wrappers,
+          wrappers.map((w) => capitalize(langOf(w)))
+        );
+      });
+  }
+
+  function init() {
+    wrapCodeBlocks();
+    buildLangTabsFromHeadings();
+    buildLangTabsFromSections();
+  }
+
+  // Copy — single delegated listener for the whole session.
+  document.addEventListener('click', async (e) => {
+    const btn = (e.target as Element).closest<HTMLButtonElement>('.copy-btn');
+    if (!btn) return;
+    const pre = btn
+      .closest('.code-block-wrapper')
+      ?.querySelector<HTMLPreElement>('pre');
+    if (!pre) return;
+    const code = pre.querySelector('code');
+    const text = (code ? code.innerText : pre.innerText).replace(/\n$/, '');
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.innerHTML = '✓ Copied';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.innerHTML = COPY_ICON;
+        btn.classList.remove('copied');
+      }, 2000);
+    } catch {
+      btn.textContent = 'Error';
+      setTimeout(() => (btn.innerHTML = COPY_ICON), 2000);
+    }
+  });
+
+  init();
+  document.addEventListener('astro:page-load', init);
+</script>

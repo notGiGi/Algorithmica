@@ -1,0 +1,118 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import EntryCard from '../components/EntryCard.astro';
+import AlgoSVG from '../components/AlgoSVG.astro';
+import ComplexityBadge from '../components/ComplexityBadge.astro';
+
+const entries = await getCollection('dsa');
+entries.sort((a, b) => b.data.date_added.valueOf() - a.data.date_added.valueOf());
+
+const categoryCount = new Set(entries.map((e) => e.data.category)).size;
+
+const lastUpdated =
+  entries.length > 0
+    ? new Date(
+        Math.max(
+          ...entries.map((e) =>
+            (e.data.last_updated ?? e.data.date_added).valueOf()
+          )
+        )
+      )
+    : null;
+
+const dtf = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+});
+
+// Featured: la entrada más reciente, con excerpt derivado del cuerpo.
+const featured = entries[0];
+const rest = entries.slice(1);
+
+function excerpt(body: string | undefined, max = 190): string {
+  if (!body) return '';
+  // primer párrafo después del primer heading h2
+  const afterH2 = body.split(/\n##\s[^\n]+\n/)[1] ?? body;
+  const para =
+    afterH2
+      .split(/\n\s*\n/)
+      .find((p) => p.trim() && !p.trim().startsWith('#')) ?? '';
+  const clean = para
+    .replace(/\$\$[\s\S]*?\$\$/g, '')
+    .replace(/\$([^$]*)\$/g, '$1')
+    .replace(/\\[a-zA-Z]+/g, '')
+    .replace(/[*_`>#\[\]{}]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return clean.length > max
+    ? clean.slice(0, max).replace(/\s\S*$/, '') + '…'
+    : clean;
+}
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<Base title="DSA Library — Personal reference" activeCategory="all">
+  <section class="home-hero">
+    <h1>DSA Library</h1>
+    <div class="title-rule"></div>
+    <p class="description">
+      Personal reference on algorithms and data structures. Explanations for
+      people who want to understand, not just implement.
+    </p>
+    <div class="stats">
+      <span>{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>
+      <span>{categoryCount} {categoryCount === 1 ? 'category' : 'categories'}</span>
+      {lastUpdated && <span>Last updated {dtf.format(lastUpdated)}</span>}
+    </div>
+  </section>
+
+  {
+    entries.length === 0 ? (
+      <p class="meta">No entries yet. Copy TEMPLATE.md into src/content/dsa/ to add one.</p>
+    ) : (
+      <>
+        <a
+          class="featured-entry"
+          href={`${base}/entry/${featured.id}`}
+          data-difficulty={featured.data.difficulty}
+        >
+          <div class="featured-body">
+            <span class="featured-badge">Latest entry</span>
+            <h2>{featured.data.title}</h2>
+            <p class="description">{excerpt(featured.body)}</p>
+            <div class="complexity-row">
+              <ComplexityBadge
+                value={featured.data.time_complexity}
+                kind={featured.data.complexity_class}
+              />
+              <ComplexityBadge
+                value={featured.data.space_complexity}
+                kind={featured.data.complexity_class}
+              />
+            </div>
+          </div>
+          {
+            featured.data.svg_type !== 'none' && (
+              <div class="featured-svg">
+                <AlgoSVG type={featured.data.svg_type} />
+              </div>
+            )
+          }
+        </a>
+
+        {
+          rest.length > 0 && (
+            <div class="entries-grid">
+              {rest.map((entry) => (
+                <EntryCard entry={entry} />
+              ))}
+            </div>
+          )
+        }
+      </>
+    )
+  }
+</Base>

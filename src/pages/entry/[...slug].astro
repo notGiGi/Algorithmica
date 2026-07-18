@@ -1,0 +1,33 @@
+---
+import { getCollection, render } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import EntryLayout from '../../layouts/Entry.astro';
+
+export const getStaticPaths = (async () => {
+  const entries = await getCollection('dsa');
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}) satisfies GetStaticPaths;
+
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+
+// Resolve related entries. Accepts both full ids ("graphs/union-find")
+// and short slugs ("union-find" — the filename without .md).
+const all = await getCollection('dsa');
+const byId = new Map(all.map((e) => [e.id, e]));
+const relatedEntries = entry.data.related
+  .map(
+    (slug) =>
+      byId.get(slug) ??
+      all.find((e) => e.id === slug || e.id.endsWith(`/${slug}`))
+  )
+  .filter((e): e is NonNullable<typeof e> => Boolean(e))
+  .map((e) => ({ id: e.id, title: e.data.title, category: e.data.category }));
+---
+
+<EntryLayout entry={entry} headings={headings} relatedEntries={relatedEntries}>
+  <Content />
+</EntryLayout>

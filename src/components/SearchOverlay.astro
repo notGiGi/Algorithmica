@@ -1,0 +1,244 @@
+---
+// Command palette — opens with ⌘K / Ctrl+K or the header search button.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<div
+  id="search-overlay"
+  class="search-overlay"
+  role="dialog"
+  aria-modal="true"
+  aria-hidden="true"
+  data-entry-base={`${base}/entry`}
+>
+  <div class="search-box" id="search-box">
+    <div class="search-input-row">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"></circle>
+        <path d="M10 10L13.5 13.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+      </svg>
+      <input
+        id="search-input"
+        type="text"
+        class="search-input"
+        placeholder="Search algorithms..."
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Search entries"
+      />
+      <kbd class="search-esc-hint">ESC</kbd>
+    </div>
+    <div id="search-results" class="search-results" role="listbox"></div>
+    <div class="search-footer">
+      <span class="search-hint"><kbd>↑↓</kbd> navigate</span>
+      <span class="search-hint"><kbd>↵</kbd> open</span>
+      <span class="search-hint"><kbd>ESC</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Fuse.js is imported dynamically inside initSearch() so a failed module
+  // resolution can never kill the listeners in this file.
+
+  let fuse: any = null;
+  let loadPromise: Promise<void> | null = null;
+  let focusedIndex = -1;
+
+  function baseUrl(): string {
+    return (
+      (document.querySelector('meta[name="base-url"]') as HTMLMetaElement)
+        ?.content ?? ''
+    );
+  }
+
+  // ---- Index ----
+  function initSearch(): Promise<void> {
+    if (fuse) return Promise.resolve();
+    if (!loadPromise) {
+      loadPromise = (async () => {
+        try {
+          const { default: Fuse } = await import('fuse.js');
+          const res = await fetch(`${baseUrl()}/search-index.json`);
+          if (!res.ok) throw new Error(`${res.status} ${res.url}`);
+          const allEntries = await res.json();
+          fuse = new Fuse(allEntries, {
+            keys: [
+              { name: 'title', weight: 0.6 },
+              { name: 'tags', weight: 0.3 },
+              { name: 'category', weight: 0.1 },
+            ],
+            threshold: 0.35,
+            includeScore: true,
+            ignoreLocation: true,
+            minMatchCharLength: 2,
+          });
+          console.log('[Search] Index ready:', allEntries.length, 'entries');
+        } catch (e) {
+          console.error('[Search] Index load failed:', e);
+          loadPromise = null; // allow retry
+          throw e;
+        }
+      })();
+    }
+    return loadPromise;
+  }
+
+  // ---- Rendering ----
+  function escapeHtml(s: string): string {
+    return s.replace(
+      /[&<>"']/g,
+      (c) =>
+        (({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }) as Record<string, string>)[c]
+    );
+  }
+
+  function highlight(text: string, query: string): string {
+    const safe = escapeHtml(text);
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!escaped) return safe;
+    return safe.replace(
+      new RegExp(`(${escaped})`, 'gi'),
+      '<mark style="background:rgba(196,120,90,0.25);color:var(--accent-text);border-radius:2px">$1</mark>'
+    );
+  }
+
+  function renderResults(query: string) {
+    const resultsEl = document.getElementById('search-results');
+    if (!resultsEl) return;
+    focusedIndex = -1;
+
+    if (!query || query.length < 2) {
+      resultsEl.innerHTML = '';
+      return;
+    }
+
+    if (!fuse) {
+      resultsEl.innerHTML = '<div class="search-empty">Loading index…</div>';
+      initSearch()
+        .then(() => renderResults(query))
+        .catch(() => {
+          resultsEl.innerHTML =
+            '<div class="search-empty">Search index unavailable — see console.</div>';
+        });
+      return;
+    }
+
+    const results = fuse.search(query).slice(0, 8);
+
+    if (results.length === 0) {
+      resultsEl.innerHTML = `<div class="search-empty">No results for "<strong>${escapeHtml(query)}</strong>"</div>`;
+      return;
+    }
+
+    const overlay = document.getElementById('search-overlay');
+    const entryBase = overlay?.dataset.entryBase ?? `${baseUrl()}/entry`;
+
+    resultsEl.innerHTML = results
+      .map(
+        (r: any, i: number) => `
+      <a href="${entryBase}/${r.item.slug ?? r.item.id}/" class="search-result-item" data-index="${i}" role="option">
+        <div class="search-result-left">
+          <div class="search-result-title">${highlight(r.item.title, query)}</div>
+          <div class="search-result-category">${escapeHtml(r.item.category)}</div>
+        </div>
+        <span class="complexity-badge ${r.item.complexity_class ?? 'ok'}" style="font-size:11px;padding:2px 7px">
+          ${escapeHtml(r.item.time_complexity ?? '')}
+        </span>
+      </a>`
+      )
+      .join('');
+  }
+
+  function updateFocus() {
+    document
+      .querySelectorAll('.search-result-item')
+      .forEach((el, i) => {
+        el.classList.toggle('focused', i === focusedIndex);
+        if (i === focusedIndex) el.scrollIntoView({ block: 'nearest' });
+      });
+  }
+
+  // ---- Open / close ----
+  function openSearch() {
+    const overlay = document.getElementById('search-overlay');
+    const input = document.getElementById('search-input') as HTMLInputElement | null;
+    overlay?.classList.add('open');
+    overlay?.setAttribute('aria-hidden', 'false');
+    setTimeout(() => input?.focus(), 60);
+    void initSearch(); // ensure index is ready
+  }
+
+  function closeSearch() {
+    const overlay = document.getElementById('search-overlay');
+    const input = document.getElementById('search-input') as HTMLInputElement | null;
+    const results = document.getElementById('search-results');
+    overlay?.classList.remove('open');
+    overlay?.setAttribute('aria-hidden', 'true');
+    if (input) input.value = '';
+    if (results) results.innerHTML = '';
+    focusedIndex = -1;
+  }
+
+  // ---- Per-page listeners (DOM is replaced by View Transitions) ----
+  function attachListeners() {
+    const input = document.getElementById('search-input') as HTMLInputElement | null;
+    const overlay = document.getElementById('search-overlay');
+    if (!input || !overlay || overlay.dataset.bound) return;
+    overlay.dataset.bound = 'true';
+
+    document.querySelectorAll<HTMLElement>('[data-search-open]').forEach((btn) => {
+      btn.addEventListener('click', openSearch);
+    });
+
+    input.addEventListener('input', (e) => {
+      renderResults((e.target as HTMLInputElement).value.trim());
+    });
+
+    input.addEventListener('keydown', (e) => {
+      const items = document.querySelectorAll<HTMLAnchorElement>('.search-result-item');
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        focusedIndex = Math.min(focusedIndex + 1, items.length - 1);
+        updateFocus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        focusedIndex = Math.max(focusedIndex - 1, 0);
+        updateFocus();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const target = focusedIndex >= 0 ? items[focusedIndex] : items[0];
+        if (target) target.click();
+      }
+    });
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeSearch();
+    });
+  }
+
+  // ---- Global listeners (attached exactly once — module runs once) ----
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      const overlay = document.getElementById('search-overlay');
+      overlay?.classList.contains('open') ? closeSearch() : openSearch();
+    }
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('search-overlay');
+      if (overlay?.classList.contains('open')) closeSearch();
+    }
+  });
+
+  document.addEventListener('astro:before-swap', closeSearch);
+
+  // Re-initialize after every Astro page transition
+  document.addEventListener('astro:page-load', () => {
+    attachListeners();
+    void initSearch();
+  });
+
+  // Also run on first load
+  attachListeners();
+  void initSearch();
+</script>

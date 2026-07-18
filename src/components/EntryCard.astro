@@ -1,0 +1,38 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import AlgoSVG from './AlgoSVG.astro';
+import ComplexityBadge from './ComplexityBadge.astro';
+import { categorySlug } from '../lib/categories';
+
+interface Props {
+  entry: CollectionEntry<'dsa'>;
+}
+const { entry } = Astro.props;
+const {
+  title,
+  category,
+  difficulty,
+  time_complexity,
+  space_complexity,
+  complexity_class,
+  svg_type,
+} = entry.data;
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const href = `${base}/entry/${entry.id}`;
+---
+
+<a
+  class="entry-card"
+  href={href}
+  data-category={categorySlug(category)}
+  data-difficulty={difficulty}
+>
+  {svg_type !== 'none' && <AlgoSVG type={svg_type} class="algo-svg" />}
+  <h3 class="entry-title">{title}</h3>
+  <div class="entry-meta">{category} · {difficulty}</div>
+  <div class="complexity-row">
+    <ComplexityBadge value={time_complexity} kind={complexity_class} />
+    <ComplexityBadge value={space_complexity} kind={complexity_class} />
+  </div>
+</a>

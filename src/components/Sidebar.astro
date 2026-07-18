@@ -1,0 +1,97 @@
+---
+import { getCollection } from 'astro:content';
+import { CATEGORIES, CATEGORY_SHORT, categorySlug } from '../lib/categories';
+
+interface Props {
+  // slug de la categoría activa, o 'all' en la home.
+  activeCategory?: string;
+}
+const { activeCategory = '' } = Astro.props;
+
+const entries = await getCollection('dsa');
+const counts = new Map<string, number>();
+for (const e of entries) {
+  counts.set(e.data.category, (counts.get(e.data.category) ?? 0) + 1);
+}
+const activeCats = CATEGORIES.filter((c) => counts.has(c));
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const home = base || '/';
+
+const difficulties = [
+  { id: 'foundational', label: 'Foundational' },
+  { id: 'intermediate', label: 'Intermediate' },
+  { id: 'advanced', label: 'Advanced' },
+] as const;
+---
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-section-label">Categories</div>
+  <a class:list={['sidebar-item', { active: activeCategory === 'all' }]} href={home}>
+    <span>All entries</span>
+    <span class="count">{entries.length}</span>
+  </a>
+  <div class="sidebar-divider"></div>
+  {
+    activeCats.map((c) => (
+      <a
+        class:list={['sidebar-item', { active: activeCategory === categorySlug(c) }]}
+        href={`${base}/${categorySlug(c)}`}
+      >
+        <span>{CATEGORY_SHORT[c]}</span>
+        <span class="count">{counts.get(c)}</span>
+      </a>
+    ))
+  }
+
+  <div class="sidebar-section-label">Difficulty</div>
+  {
+    difficulties.map((d) => (
+      <button class="sidebar-item diff-item" type="button" data-difficulty={d.id}>
+        <span class="diff-left">
+          <span class="diff-dot" />
+          {d.label}
+        </span>
+      </button>
+    ))
+  }
+</aside>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+<script>
+  // Delegación global: sobrevive a las View Transitions sin re-bind.
+
+  // --- Menú móvil ---
+  document.addEventListener('click', (e) => {
+    const target = e.target as Element;
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    if (!sidebar || !backdrop) return;
+
+    if (target.closest('[data-menu-toggle]')) {
+      const open = sidebar.classList.toggle('open');
+      backdrop.classList.toggle('visible', open);
+    } else if (target.closest('#sidebar-backdrop')) {
+      sidebar.classList.remove('open');
+      backdrop.classList.remove('visible');
+    }
+  });
+
+  // --- Filtro por dificultad (radio con toggle para limpiar) ---
+  document.addEventListener('click', (e) => {
+    const btn = (e.target as Element).closest<HTMLButtonElement>('.diff-item');
+    if (!btn) return;
+
+    const wasActive = btn.classList.contains('active');
+    document
+      .querySelectorAll('.diff-item')
+      .forEach((b) => b.classList.remove('active'));
+    if (!wasActive) btn.classList.add('active');
+
+    const selected = wasActive ? null : btn.dataset.difficulty;
+    document.querySelectorAll<HTMLElement>('.entry-card').forEach((card) => {
+      const show = !selected || card.dataset.difficulty === selected;
+      card.classList.toggle('is-hidden', !show);
+    });
+  });
+</script>

@@ -1,0 +1,53 @@
+---
+import { getCollection } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import Base from '../layouts/Base.astro';
+import EntryCard from '../components/EntryCard.astro';
+import { CATEGORIES, CATEGORY_META, categorySlug } from '../lib/categories';
+
+export const getStaticPaths = (async () => {
+  const entries = await getCollection('dsa');
+  return CATEGORIES.map((category) => {
+    const inCat = entries
+      .filter((e) => e.data.category === category)
+      .sort(
+        (a, b) => b.data.date_added.valueOf() - a.data.date_added.valueOf()
+      );
+    return {
+      params: { category: categorySlug(category) },
+      props: { category, entries: inCat },
+    };
+  });
+}) satisfies GetStaticPaths;
+
+const { category, entries } = Astro.props;
+const slug = categorySlug(category);
+const meta = CATEGORY_META[category];
+---
+
+<Base
+  title={`${category} — DSA Library`}
+  description={`Entries in ${category}.`}
+  breadcrumb={[{ label: category }]}
+  activeCategory={slug}
+>
+  <header class="category-header">
+    <span class="category-icon" style={`color: ${meta.color}`}>{meta.icon}</span>
+    <h1 class="category-title">{category}</h1>
+    <span class="category-count">
+      {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+    </span>
+  </header>
+
+  {
+    entries.length === 0 ? (
+      <p class="meta">No entries in this category yet.</p>
+    ) : (
+      <div class="entries-grid">
+        {entries.map((entry) => (
+          <EntryCard entry={entry} />
+        ))}
+      </div>
+    )
+  }
+</Base>

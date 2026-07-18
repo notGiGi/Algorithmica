@@ -1,0 +1,13 @@
+---
+import { getCollection } from 'astro:content';
+const entries = await getCollection('dsa');
+const repoUrl = 'https://github.com/notGiGi/Algorithmica';
+---
+
+<footer class="site-footer">
+  <span>DSA Library</span>
+  <span class="footer-dot">·</span>
+  <span>{entries.length} {entries.length === 1 ? 'entry' : 'entries'}</span>
+  <span class="footer-dot">·</span>
+  <a href={repoUrl} target="_blank" rel="noopener noreferrer">Source</a>
+</footer>

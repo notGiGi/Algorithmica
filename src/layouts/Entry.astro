@@ -1,0 +1,201 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import type { MarkdownHeading } from 'astro';
+import Base from './Base.astro';
+import AlgoSVG from '../components/AlgoSVG.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import { categorySlug } from '../lib/categories';
+
+interface RelatedEntry {
+  id: string;
+  title: string;
+  category: string;
+}
+
+interface Props {
+  entry: CollectionEntry<'dsa'>;
+  headings: MarkdownHeading[];
+  relatedEntries: RelatedEntry[];
+}
+
+const { entry, headings, relatedEntries } = Astro.props;
+const d = entry.data;
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const home = base || '/';
+const catSlug = categorySlug(d.category);
+const catUrl = `${base}/${catSlug}`;
+
+// TOC: solo h2, y solo si hay más de 4 secciones.
+const toc = headings.filter((h) => h.depth === 2);
+const showToc = toc.length > 4;
+
+const dtf = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+});
+---
+
+<Base
+  title={`${d.title} — DSA Library`}
+  description={`${d.title} · ${d.category} · Time ${d.time_complexity}, Space ${d.space_complexity}.`}
+  breadcrumb={[{ label: d.category, href: catUrl }, { label: d.title }]}
+  activeCategory={catSlug}
+>
+  <header class="entry-hero">
+    <a class="back-link" href={home}>Back to library</a>
+
+    {
+      d.svg_type !== 'none' && (
+        <div class="entry-hero-visual">
+          <AlgoSVG type={d.svg_type} class="algo-svg-large" />
+        </div>
+      )
+    }
+
+    <h1>{d.title}</h1>
+
+    <div class="entry-meta-row">
+      <a class="meta" href={catUrl}>{d.category}</a>
+      <span class="meta">·</span>
+      <span class="meta">{d.difficulty}</span>
+    </div>
+
+    {
+      d.tags.length > 0 && (
+        <div class="entry-tags">
+          {d.tags.map((t) => (
+            <span class="tag">#{t}</span>
+          ))}
+        </div>
+      )
+    }
+
+    <div class="complexity-table">
+      <div class="complexity-table-header">Complexity</div>
+      <div class="complexity-table-row">
+        <span class="label-cell">Time</span>
+        <span class:list={['value-cell', d.complexity_class]}>{d.time_complexity}</span>
+        <span class="note-cell">{d.time_note ?? ''}</span>
+      </div>
+      <div class="complexity-table-row">
+        <span class="label-cell">Space</span>
+        <span class:list={['value-cell', d.complexity_class]}>{d.space_complexity}</span>
+        <span class="note-cell">{d.space_note ?? ''}</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="entry-body">
+    {
+      showToc && (
+        <nav class="toc" aria-label="Table of contents">
+          <div class="toc-label">On this page</div>
+          {toc.map((h) => (
+            <a class="toc-item" href={`#${h.slug}`} data-heading={h.slug}>
+              {h.text}
+            </a>
+          ))}
+        </nav>
+      )
+    }
+
+    <article class="prose">
+      <slot />
+    </article>
+  </div>
+
+  {
+    d.leetcode_problems.length > 0 && (
+      <section class="leetcode-section">
+        <h2>LeetCode Problems</h2>
+        {d.leetcode_problems.map((p) => (
+          <a
+            class="problem-item"
+            href={`https://leetcode.com/problems/?search=${encodeURIComponent(p.name)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span class="problem-number">#{p.number}</span>
+            <span class="problem-name">{p.name}</span>
+            <span class:list={['problem-diff', p.difficulty]}>{p.difficulty}</span>
+          </a>
+        ))}
+      </section>
+    )
+  }
+
+  {
+    relatedEntries.length > 0 && (
+      <section class="related-section">
+        <h2>Related entries</h2>
+        <div class="related-grid">
+          {relatedEntries.map((r) => (
+            <a class="related-card" href={`${base}/entry/${r.id}`}>
+              <span class="related-title">{r.title}</span>
+              <span class="related-cat">{r.category}</span>
+              <span class="related-arrow" aria-hidden="true">→</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )
+  }
+
+  <p class="entry-footer-meta meta">
+    Added {dtf.format(d.date_added)}{
+      d.last_updated ? ` · Updated ${dtf.format(d.last_updated)}` : ''
+    }
+  </p>
+
+  <CodeBlock />
+</Base>
+
+<script>
+  // TOC activo con IntersectionObserver.
+  let tocObserver: IntersectionObserver | null = null;
+
+  function initToc() {
+    tocObserver?.disconnect();
+    tocObserver = null;
+
+    const toc = document.querySelector('.toc');
+    if (!toc) return;
+
+    const items = new Map(
+      Array.from(toc.querySelectorAll<HTMLAnchorElement>('.toc-item')).map(
+        (el) => [el.dataset.heading ?? '', el]
+      )
+    );
+    const headings = Array.from(
+      document.querySelectorAll<HTMLElement>('.prose h2[id]')
+    );
+    if (headings.length === 0) return;
+
+    const setActive = (id: string) => {
+      items.forEach((el, key) =>
+        el.classList.toggle('active', key === id)
+      );
+    };
+
+    tocObserver = new IntersectionObserver(
+      (entries) => {
+        // El heading visible más cercano al tope gana.
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) {
+          setActive(visible[0].target.id);
+        }
+      },
+      { rootMargin: '-60px 0px -70% 0px', threshold: 0 }
+    );
+
+    headings.forEach((h) => tocObserver!.observe(h));
+    setActive(headings[0].id);
+  }
+
+  initToc();
+  document.addEventListener('astro:page-load', initToc);
+</script>

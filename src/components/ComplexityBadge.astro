@@ -1,0 +1,12 @@
+---
+// Badge de complejidad — good = verde, ok = ámbar, heavy = rojo.
+interface Props {
+  value: string; // ej: "O(n log n)"
+  kind?: 'good' | 'ok' | 'heavy';
+  label?: string; // "Time" | "Space" — opcional, se muestra antes del badge
+}
+const { value, kind = 'ok', label } = Astro.props;
+---
+
+{label && <span class="complexity-label">{label}</span>}<span
+  class:list={['complexity-badge', kind]}>{value}</span>

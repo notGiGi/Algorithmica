@@ -1,0 +1,56 @@
+---
+interface Crumb {
+  label: string;
+  href?: string;
+}
+interface Props {
+  breadcrumb?: Crumb[];
+}
+const { breadcrumb = [] } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const home = base || '/';
+---
+
+<header class="site-header">
+  <div class="header-left">
+    <button class="menu-btn" type="button" aria-label="Toggle navigation" data-menu-toggle>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <line x1="2" y1="4" x2="14" y2="4"></line>
+        <line x1="2" y1="8" x2="14" y2="8"></line>
+        <line x1="2" y1="12" x2="14" y2="12"></line>
+      </svg>
+    </button>
+    <a class="brand" href={home}>
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+        <path d="M6 0.5 L11.5 6 L6 11.5 L0.5 6 Z" fill="var(--accent)"></path>
+      </svg>
+      <span class="site-name">DSA Library</span>
+    </a>
+  </div>
+
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    {
+      breadcrumb.map((crumb, i) => (
+        <>
+          {i > 0 && <span class="crumb-sep">›</span>}
+          {crumb.href ? (
+            <a href={crumb.href}>{crumb.label}</a>
+          ) : (
+            <span class="crumb-current">{crumb.label}</span>
+          )}
+        </>
+      ))
+    }
+  </nav>
+
+  <div class="header-right">
+    <button class="header-search-hint" type="button" id="search-trigger" data-search-open aria-label="Open search">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <span>Search</span>
+      <span class="shortcut">⌘K</span>
+    </button>
+  </div>
+</header>
